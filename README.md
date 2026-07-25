@@ -1,34 +1,34 @@
 # One More Audio Controller
 
-Forge 1.20.1, mod completamente **client-side**.
+Forge 1.20.1, **fully client-side** mod.
 
-Aggiunge alla schermata vanilla **Opzioni → Musica e suoni** slider audio indipendenti da quelli
-vanilla (Master, Musica, Jukebox/Blocchi note, Meteo, Blocchi, Creature ostili, Creature amichevoli,
-Giocatori, Ambiente, Voce/Parlato). Ogni slider aggiuntivo controlla **solo** i suoni che gli
-assegni tu (o un altro mod), senza toccare Master, Players o qualunque altra categoria vanilla.
+Adds independent audio sliders to the vanilla **Options → Music & Sounds** screen, next to the
+vanilla ones (Master, Music, Jukebox/Noteblocks, Weather, Blocks, Hostile Creatures, Friendly
+Creatures, Players, Ambient/Environment, Voice/Speech). Each extra slider controls **only** the
+sounds you (or another mod) assign to it, without touching Master, Players, or any other vanilla
+category.
 
-Puoi aggiungere nuovi controller in due modi, usabili insieme:
+You can add new controllers in two ways, and they can be used together:
 
-1. **JSON** - modifichi due file di config, niente codice. Pensato per modpack/utenti finali.
-2. **API** - un altro mod registra i propri controller a runtime dal proprio codice Java. Pensato
-   per sviluppatori (es. un mod di pistole che vuole uno slider "Suoni Pistole" separato da
-   "Giocatori").
+1. **JSON** - edit two config files, no code needed. Meant for modpacks/end users.
+2. **API** - another mod registers its own controllers at runtime from its own Java code. Meant
+   for developers (e.g. a guns mod that wants a "Gun Sounds" slider separate from "Players").
 
-Tutto si applica **senza riavviare il gioco**: i due file JSON vengono riletti ogni volta che apri
-la schermata Musica e suoni (anche se la apri dal bottone "Config" del menù Mods o da mod come
-**Catalogue**).
+Everything applies **without restarting the game**: both JSON files are reloaded every time you
+open the Music & Sounds screen (including when opened from the Mods menu "Config" button or from
+mods like **Catalogue**).
 
 ---
 
-## 1. Configurazione via JSON
+## 1. JSON configuration
 
-I file si trovano in `config/onemoreaudiocontroller/` e vengono creati automaticamente al primo
-avvio con dei valori di default.
+The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch
+with default values.
 
-### `controllers.json` - quali controller esistono
+### `controllers.json` - which controllers exist
 
-Ogni voce è un controller: un id, i suoni che deve gestire, e (dopo la prima modifica dello
-slider) il volume salvato.
+Each entry is a controller: an id, the sounds it should control, and (after you first move the
+slider in-game) the saved volume.
 
 ```json
 [
@@ -39,16 +39,16 @@ slider) il volume salvato.
 ]
 ```
 
-Campi:
+Fields:
 
-| Campo            | Obbligatorio | Descrizione |
-|-------------------|:---:|-------------|
-| `id`               | sì | Identificatore univoco del controller (minuscolo, senza spazi). Non può coincidere con un nome di categoria vanilla (`master`, `music`, `records`, `weather`, `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`). |
-| `sounds`           | sì | Lista di sound event (`namespace:path`) che questo slider deve controllare. Trovi gli id dei suoni in `assets/<namespace>/sounds.json` del mod/resource pack che li definisce. |
-| `translationKey`   | no | Chiave di traduzione per l'etichetta mostrata nel menù. Default: `soundCategory.<id>`. Aggiungi la chiave nei tuoi file lang (`assets/<namespace>/lang/it_it.json`, ecc.) o in un resource pack. |
-| `volume`           | no | Volume iniziale, `0.0`-`1.0`. Default `1.0`. Il mod lo riscrive automaticamente ogni volta che sposti lo slider in gioco: non serve modificarlo a mano dopo il primo avvio. |
+| Field              | Required | Description |
+|---------------------|:---:|-------------|
+| `id`                 | yes | Unique identifier for the controller (lowercase, no spaces). Cannot match a vanilla category name (`master`, `music`, `records`, `weather`, `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`). |
+| `sounds`             | yes | List of sound events (`namespace:path`) this slider should control. You'll find sound ids in the `assets/<namespace>/sounds.json` of the mod/resource pack that defines them. |
+| `translationKey`     | no | Translation key used for the label shown in the menu. Default: `soundCategory.<id>`. Add the key to your lang files (`assets/<namespace>/lang/en_us.json`, etc.) or to a resource pack. |
+| `volume`             | no | Initial volume, `0.0`-`1.0`. Default `1.0`. The mod rewrites this automatically every time you move the slider in-game, so you don't need to touch it by hand after the first launch. |
 
-Esempio - un modpack vuole uno slider separato per la musica di un mod di ambientazione:
+Example - a modpack wants a separate slider for an ambience mod's music:
 
 ```json
 [
@@ -57,10 +57,10 @@ Esempio - un modpack vuole uno slider separato per la musica di un mod di ambien
 ]
 ```
 
-### `order.json` - in che ordine appaiono gli slider
+### `order.json` - the order sliders appear in
 
-Lista di id (categorie vanilla in minuscolo + id dei controller custom) che decide come vengono
-accoppiati a due a due nella griglia:
+List of ids (vanilla categories in lowercase + custom controller ids) that decides how they're
+paired up two-by-two in the grid:
 
 ```json
 [
@@ -72,44 +72,44 @@ accoppiati a due a due nella griglia:
 ]
 ```
 
-Regole:
+Rules:
 
-- **Master** è sempre il primo, da solo in cima: non va (e non può essere) inserito qui.
-- **Selezione dispositivo audio**, **Sottotitoli** e **Audio direzionale** restano sempre le ultime
-  tre voci, sotto a tutti i controller: anche queste non vanno inserite qui, il mod non le tocca.
-- Ogni id elencato qui viene mostrato per primo, nell'ordine in cui lo scrivi.
-- Qualsiasi controller (vanilla o custom) **non** elencato qui viene comunque mostrato, in coda,
-  così un refuso in questo file non nasconde mai uno slider.
-- Un id sconosciuto (typo, controller non definito da nessuna parte) viene ignorato con un
-  warning nel log.
+- **Master** is always first, alone at the top: it must not (and cannot) be listed here.
+- **Sound Device**, **Subtitles**, and **Directional Audio** always stay the last three entries,
+  below every controller: these must not be listed here either, the mod never touches them.
+- Every id listed here is shown first, in the order you write it.
+- Any controller (vanilla or custom) **not** listed here is still shown, appended at the end, so a
+  typo in this file never hides a slider.
+- An unknown id (typo, or a controller that isn't defined anywhere) is skipped with a warning in
+  the log.
 
-### `externalcontroller.json` - solo lettura, generato dal mod
+### `externalcontroller.json` - read-only, generated by the mod
 
-Ogni volta che un mod registra un controller via API (vedi sotto), questo mod lo salva qui insieme
-al volume corrente. Serve **solo** a farti vedere quali id sono già occupati dal codice di altri
-mod, così quando scrivi `controllers.json` a mano eviti di riusare lo stesso id. Non modificarlo a
-mano: viene rigenerato a ogni avvio e ogni cambio di volume, e non viene mai letto come sorgente di
-nuovi controller (solo per ripristinare il volume salvato di un controller registrato via API).
+Whenever a mod registers a controller through the API (see below), this mod saves it here along
+with its current volume. This file exists **only** so you can see which ids are already taken by
+other mods' code when hand-editing `controllers.json`, to avoid reusing the same id. Don't edit it
+by hand: it's regenerated on every launch and every volume change, and it is never read as a
+source of new controllers (only to restore the saved volume of an API-registered controller).
 
-Se `controllers.json` e un controller registrato via API usano lo stesso id, **vince sempre
-l'API**: la voce JSON viene ignorata con un warning nel log che ti rimanda a
+If `controllers.json` and an API-registered controller ever use the same id, **the API always
+wins**: the JSON entry is skipped, with a warning in the log pointing you to
 `externalcontroller.json`.
 
 ---
 
-## 2. API per sviluppatori
+## 2. API for developers
 
-Se stai scrivendo un mod (es. un mod di pistole) e vuoi un tuo slider indipendente senza chiedere
-all'utente di editare JSON, registralo in codice con `OneMoreAudioControllerApi`.
+If you're writing a mod (e.g. a guns mod) and want your own independent slider without asking the
+user to edit JSON, register it in code with `OneMoreAudioControllerApi`.
 
-### Dipendenza
+### Dependency
 
-Aggiungi questo mod come dipendenza di compilazione (jar in `libs/`, Maven, o Curse/Modrinth
-maven a seconda di dove lo pubblichi) e dichiaralo come dipendenza opzionale nel tuo `mods.toml`,
-così il tuo mod funziona anche senza:
+Add this mod as a compile-time dependency (jar in `libs/`, Maven, or the Curse/Modrinth maven
+depending on where you publish it) and declare it as an optional dependency in your `mods.toml`, so
+your mod still works without it:
 
 ```toml
-[[dependencies.tuomodid]]
+[[dependencies.yourmodid]]
     modId="onemoreaudiocontroller"
     mandatory=false
     versionRange="[1.0,)"
@@ -117,23 +117,23 @@ così il tuo mod funziona anche senza:
     side="CLIENT"
 ```
 
-Se il tuo mod deve funzionare anche senza `onemoreaudiocontroller` installato, avvolgi la chiamata
-in un controllo `ModList.get().isLoaded("onemoreaudiocontroller")` prima di chiamare l'API.
+If your mod also needs to work without `onemoreaudiocontroller` installed, wrap the call in a
+`ModList.get().isLoaded("onemoreaudiocontroller")` check before calling the API.
 
-### Uso
+### Usage
 
 ```java
 import net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi;
 import net.minecraft.resources.ResourceLocation;
 
-// Etichetta presa da soundCategory.mygunmod_gun_sounds nei tuoi file lang
+// Label taken from soundCategory.mygunmod_gun_sounds in your lang files
 OneMoreAudioControllerApi.registerController(
         "mygunmod_gun_sounds",
         new ResourceLocation("mygunmod", "gun_shot"),
         new ResourceLocation("mygunmod", "gun_reload")
 );
 
-// Oppure con una chiave di traduzione esplicita
+// Or with an explicit translation key
 OneMoreAudioControllerApi.registerController(
         "mygunmod_gun_sounds",
         "mygunmod.options.gun_sounds",
@@ -142,32 +142,32 @@ OneMoreAudioControllerApi.registerController(
 );
 ```
 
-Chiamala una volta sola, presto (costruttore del mod o `FMLCommonSetupEvent` vanno bene entrambi):
-l'ordine finale sullo schermo viene calcolato solo quando il giocatore apre per la prima volta la
-schermata Musica e suoni, quindi ben dopo che tutti i mod hanno finito di caricarsi.
+Call it once, early - either your mod's constructor or `FMLCommonSetupEvent` work fine, since the
+final on-screen order is only computed the first time the player opens the Sound Options screen,
+well after every mod has finished loading.
 
-Regole pratiche:
+Practical rules:
 
-- **Scegli un id che includa il tuo modid** (es. `"mygunmod_gun_sounds"`, non `"gun_sounds"`) per
-  evitare collisioni con altri mod.
-- Non puoi usare un id riservato alle categorie vanilla (`master`, `music`, `records`, `weather`,
+- **Pick an id that includes your own mod id** (e.g. `"mygunmod_gun_sounds"`, not
+  `"gun_sounds"`) to avoid clashing with other mods.
+- You can't use an id reserved for vanilla categories (`master`, `music`, `records`, `weather`,
   `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`).
-- Richiamare `registerController` una seconda volta con lo stesso id lo ridefinisce (utile se il
-  tuo mod ricalcola la lista suoni), mantenendo il volume che l'utente aveva già impostato.
-- Il volume viene salvato automaticamente in `externalcontroller.json` a ogni modifica dello
-  slider e ripristinato ai successivi avvii, senza bisogno di codice aggiuntivo lato tuo.
-- Se in `order.json` non citi il tuo id, il tuo slider compare comunque, in coda a tutti gli
-  altri controller.
+- Calling `registerController` again with the same id redefines it (useful if your mod recomputes
+  its sound list), keeping whatever volume the user already set.
+- The volume is saved automatically to `externalcontroller.json` on every slider change and
+  restored on the next launch, no extra code needed on your side.
+- If your id isn't listed in `order.json`, your slider still shows up, appended after every other
+  controller.
 
 ---
 
-## Compatibilità con Catalogue / menù Mods
+## Compatibility with Catalogue / the Mods menu
 
-Il mod registra la vanilla `ConfigScreenHandler` di Forge, quindi il bottone "Config" nel menù Mods
-e mod come **Catalogue** aprono direttamente la stessa schermata Musica e suoni, con tutti gli
-slider (vanilla + JSON + API) già nell'ordine configurato. Ogni apertura ricarica `controllers.json`
-e `order.json` da disco, quindi puoi modificare i JSON, riaprire quella schermata e vedere subito
-le modifiche, senza riavviare Minecraft.
+The mod registers Forge's vanilla `ConfigScreenHandler`, so the "Config" button in the Mods menu
+and mods like **Catalogue** open this same Music & Sounds screen directly, with every slider
+(vanilla + JSON + API) already in the configured order. Every time it opens, `controllers.json` and
+`order.json` are reloaded from disk, so you can edit the JSON files, reopen that screen, and see
+the changes immediately - no need to restart Minecraft.
 
 ---
 
@@ -177,6 +177,6 @@ le modifiche, senza riavviare Minecraft.
 ./gradlew build
 ```
 
-Richiede Java 17 (Minecraft 1.20.1 lo richiede a runtime). Il file `gradle.properties` è già
-puntato a una JDK 17 locale (`org.gradle.java.installations.paths`): aggiornalo al percorso della
-tua installazione se necessario. Il jar compilato si trova in `build/libs/`.
+Requires Java 17 (Minecraft 1.20.1 requires it at runtime). `gradle.properties` is already pinned
+to a local JDK 17 install (`org.gradle.java.installations.paths`): update it to your own
+installation path if needed. The compiled jar ends up in `build/libs/`.
