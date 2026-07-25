@@ -1,5 +1,7 @@
 # One More Audio Controller
 
+[![](https://jitpack.io/v/LSS02-Minecraft-Mods/OneMoreAudioController.svg)](https://jitpack.io/#LSS02-Minecraft-Mods/OneMoreAudioController)
+
 Forge 1.20.1, **fully client-side** mod.
 
 Adds independent audio sliders to the vanilla **Options → Music & Sounds** screen, next to the
