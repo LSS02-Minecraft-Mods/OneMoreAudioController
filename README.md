@@ -132,9 +132,42 @@ never can (see part 1).
 
 ### Dependency
 
-Add this mod as a compile-time dependency (jar in `libs/`, Maven, or the Curse/Modrinth maven
-depending on where you publish it) and declare it as an optional dependency in your `mods.toml`, so
-your mod still works without it:
+The mod is published on [JitPack](https://jitpack.io/#LSS02-Minecraft-Mods/OneMoreAudioController).
+Replace `TAG` with a release tag/commit from that page (e.g. `1.0`, or `main-SNAPSHOT` for the
+latest commit on the default branch).
+
+**Gradle** (`build.gradle`):
+
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    // fg.deobf(...) remaps the published jar to match your ForgeGradle dev mappings, the same as
+    // any other mod dependency added via ForgeGradle.
+    implementation fg.deobf('com.github.LSS02-Minecraft-Mods:OneMoreAudioController:TAG')
+}
+```
+
+**Maven** (`pom.xml`):
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.github.LSS02-Minecraft-Mods</groupId>
+    <artifactId>OneMoreAudioController</artifactId>
+    <version>TAG</version>
+</dependency>
+```
+
+Then declare it as an optional dependency in your `mods.toml`, so your mod still works without it:
 
 ```toml
 [[dependencies.yourmodid]]
