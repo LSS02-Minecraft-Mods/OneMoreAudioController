@@ -30,12 +30,15 @@ import java.util.Set;
  * Holds every audio controller known to the mod, from two sources:
  * <ul>
  *   <li><b>JSON</b> - hand/modpack-edited entries in {@code config/onemoreaudiocontroller/controllers.json}.
- *   Reloaded from disk every time {@link #reload()} runs.</li>
+ *   Reloaded from disk every time {@link #reload()} runs. A JSON entry is only an {@code id} and a
+ *   {@code default_name}: it never lists sound events - see the class doc on
+ *   {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for why.</li>
  *   <li><b>API</b> - entries other mods add in code via
- *   {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi}. These are
- *   mirrored to {@code config/onemoreaudiocontroller/externalcontroller.json} purely so modpack
- *   authors editing controllers.json can see which ids are already taken by mod code - that file
- *   is never read as an *input* for defining controllers, only for restoring saved volumes and
+ *   {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi}, sound events
+ *   included: only the mod that owns those sounds knows which ones belong under its controller.
+ *   These are mirrored to {@code config/onemoreaudiocontroller/externalcontroller.json} purely so
+ *   modpack authors editing controllers.json can see which ids are already taken by mod code - that
+ *   file is never read as an *input* for defining controllers, only for restoring saved volumes and
  *   reporting taken ids.</li>
  * </ul>
  * If both sources define the same id, the API entry wins and the JSON one is skipped with a
@@ -73,13 +76,18 @@ public final class AudioControllerManager {
 
     public static final class ControllerDefinition {
         public final String id;
+        /** Always {@code "soundCategory." + id}. Add a matching key to a lang file/resource pack to translate it. */
         public final String translationKey;
+        /** English fallback label shown whenever no lang entry exists for {@link #translationKey}. */
+        public final String defaultName;
+        /** The sounds this controller's slider affects. Only ever populated for API-registered controllers. */
         public final Set<ResourceLocation> sounds;
         public volatile double volume;
 
-        private ControllerDefinition(String id, String translationKey, Set<ResourceLocation> sounds, double volume) {
+        private ControllerDefinition(String id, String defaultName, Set<ResourceLocation> sounds, double volume) {
             this.id = id;
-            this.translationKey = translationKey;
+            this.translationKey = "soundCategory." + id;
+            this.defaultName = defaultName;
             this.sounds = sounds;
             this.volume = volume;
         }
@@ -192,11 +200,11 @@ public final class AudioControllerManager {
     }
 
     /**
-     * Registers (or redefines) a controller in code. See
+     * Registers (or redefines) a controller in code, sounds included. See
      * {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for the
      * public entry point - mods should not call this class directly.
      */
-    public static synchronized void registerApiController(String id, String translationKey, Collection<ResourceLocation> sounds) {
+    public static synchronized void registerApiController(String id, String defaultName, Collection<ResourceLocation> sounds) {
         if (id == null || id.isBlank()) {
             LOGGER.error("[onemoreaudiocontroller] Ignoring registerController() call with a blank id");
             return;
@@ -219,12 +227,27 @@ public final class AudioControllerManager {
             volume = persistedApiVolumes.getOrDefault(id, 1.0);
         }
 
-        String resolvedTranslationKey = translationKey == null || translationKey.isBlank() ? "soundCategory." + id : translationKey;
+        String resolvedDefaultName = (defaultName == null || defaultName.isBlank()) ? prettify(id) : defaultName;
         Set<ResourceLocation> soundSet = sounds == null ? Set.of() : Set.copyOf(new HashSet<>(sounds));
-        apiControllers.put(id, new ControllerDefinition(id, resolvedTranslationKey, soundSet, volume));
+        apiControllers.put(id, new ControllerDefinition(id, resolvedDefaultName, soundSet, volume));
 
         saveExternalControllers();
         recompute();
+    }
+
+    private static String prettify(String id) {
+        String[] words = id.replace('_', ' ').replace('-', ' ').trim().split("\\s+");
+        StringBuilder result = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (result.length() > 0) {
+                result.append(' ');
+            }
+            result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return result.length() == 0 ? id : result.toString();
     }
 
     private static void ensurePersistedVolumesLoaded() {
@@ -315,8 +338,8 @@ public final class AudioControllerManager {
 
     private static ControllerDefinition parseController(JsonElement element) {
         JsonObject obj = element.getAsJsonObject();
-        if (!obj.has("id") || !obj.has("sounds")) {
-            LOGGER.warn("[onemoreaudiocontroller] Skipping controller entry missing 'id' or 'sounds': {}", obj);
+        if (!obj.has("id") || !obj.has("default_name")) {
+            LOGGER.warn("[onemoreaudiocontroller] Skipping controller entry missing 'id' or 'default_name': {}", obj);
             return null;
         }
         String id = obj.get("id").getAsString();
@@ -324,21 +347,13 @@ public final class AudioControllerManager {
             LOGGER.warn("[onemoreaudiocontroller] Controller id '{}' clashes with a vanilla sound category, skipping", id);
             return null;
         }
-        String translationKey = obj.has("translationKey") ? obj.get("translationKey").getAsString() : "soundCategory." + id;
+        String defaultName = obj.get("default_name").getAsString();
         double volume = obj.has("volume") ? Mth.clamp(obj.get("volume").getAsDouble(), 0.0, 1.0) : 1.0;
 
-        Set<ResourceLocation> sounds = new HashSet<>();
-        for (JsonElement soundElement : obj.getAsJsonArray("sounds")) {
-            String raw = soundElement.getAsString();
-            ResourceLocation location = ResourceLocation.tryParse(raw);
-            if (location == null) {
-                LOGGER.warn("[onemoreaudiocontroller] Invalid sound id '{}' for controller '{}', skipping that entry", raw, id);
-                continue;
-            }
-            sounds.add(location);
-        }
-
-        return new ControllerDefinition(id, translationKey, Set.copyOf(sounds), volume);
+        // JSON never carries sound events: only the mod that owns those sounds should assign them,
+        // through the API. A JSON-only controller stays a visible but silent slider until some mod
+        // registers the same id via registerController(...).
+        return new ControllerDefinition(id, defaultName, Set.of(), volume);
     }
 
     private static boolean isReservedId(String id) {
@@ -410,12 +425,14 @@ public final class AudioControllerManager {
     private static JsonObject toJson(ControllerDefinition definition) {
         JsonObject obj = new JsonObject();
         obj.addProperty("id", definition.id);
-        if (!definition.translationKey.equals("soundCategory." + definition.id)) {
-            obj.addProperty("translationKey", definition.translationKey);
+        obj.addProperty("default_name", definition.defaultName);
+        // Only ever non-empty for API-registered controllers; informational only, never read back
+        // as input - see the class doc for why JSON controllers can't declare sounds.
+        if (!definition.sounds.isEmpty()) {
+            JsonArray sounds = new JsonArray();
+            definition.sounds.forEach(location -> sounds.add(location.toString()));
+            obj.add("sounds", sounds);
         }
-        JsonArray sounds = new JsonArray();
-        definition.sounds.forEach(location -> sounds.add(location.toString()));
-        obj.add("sounds", sounds);
         obj.addProperty("volume", definition.volume);
         return obj;
     }

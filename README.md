@@ -5,14 +5,15 @@ Forge 1.20.1, **fully client-side** mod.
 Adds independent audio sliders to the vanilla **Options → Music & Sounds** screen, next to the
 vanilla ones (Master, Music, Jukebox/Noteblocks, Weather, Blocks, Hostile Creatures, Friendly
 Creatures, Players, Ambient/Environment, Voice/Speech). Each extra slider controls **only** the
-sounds you (or another mod) assign to it, without touching Master, Players, or any other vanilla
-category.
+sounds assigned to it, without touching Master, Players, or any other vanilla category.
 
-You can add new controllers in two ways, and they can be used together:
+Two separate concerns, two separate mechanisms:
 
-1. **JSON** - edit two config files, no code needed. Meant for modpacks/end users.
-2. **API** - another mod registers its own controllers at runtime from its own Java code. Meant
-   for developers (e.g. a guns mod that wants a "Gun Sounds" slider separate from "Players").
+1. **Which controllers exist, and in what order** - this is configuration: `controllers.json` and
+   `orders.json`, editable by anyone (a modpack, a resource pack, an end user), no code needed.
+2. **Which sounds a controller actually affects** - this is a code concern, owned by whichever mod's
+   sounds they are. It's set exclusively through the `OneMoreAudioControllerApi` Java API, never
+   through JSON: only the mod that ships a sound really knows which controller it belongs under.
 
 Everything applies **without restarting the game**: both JSON files are reloaded every time you
 open the Music & Sounds screen (including when opened from the Mods menu "Config" button or from
@@ -26,7 +27,8 @@ The files live in `config/onemoreaudiocontroller/` and are created automatically
 
 - `controllers.json` starts empty (`[]`) - the mod ships with **no** predefined controllers, you
   (or a modpack, or another mod) decide what goes here. The `menu_music` controller used in the
-  examples below is just that, an example: if you want it, define it yourself.
+  examples below is just that, an example: it's not shipped, and it isn't functional until some
+  mod registers sounds for it through the API (see part 2).
 - `orders.json` starts pre-filled with every vanilla category (`music`, `records`, `weather`,
   `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`), so it's immediately editable
   without having to look up valid ids first. If you delete one of those lines, the mod adds it
@@ -34,26 +36,48 @@ The files live in `config/onemoreaudiocontroller/` and are created automatically
 
 ### `controllers.json` - which controllers exist
 
-Each entry is a controller: an id, the sounds it should control, and (after you first move the
-slider in-game) the saved volume.
+Each entry declares a controller's **identity and label only** - never sounds. An entry here just
+means "this id exists, and this is its English name"; it stays a real, visible slider that
+controls nothing until a mod registers sounds for that same id through
+[the API](#2-api-for-developers). This is intentional: a modpack author generally has no reliable
+way to know another mod's internal sound event ids, so this mod never asks JSON to guess at that -
+only the mod that ships a sound can correctly say which controller it belongs under.
 
 Fields:
 
-| Field              | Required | Description |
-|---------------------|:---:|-------------|
-| `id`                 | yes | Unique identifier for the controller (lowercase, no spaces). Cannot match a vanilla category name (`master`, `music`, `records`, `weather`, `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`). |
-| `sounds`             | yes | List of sound events (`namespace:path`) this slider should control. You'll find sound ids in the `assets/<namespace>/sounds.json` of the mod/resource pack that defines them. |
-| `translationKey`     | no | Translation key used for the label shown in the menu. Default: `soundCategory.<id>`. Add the key to your lang files (`assets/<namespace>/lang/en_us.json`, etc.) or to a resource pack. |
-| `volume`             | no | Initial volume, `0.0`-`1.0`. Default `1.0`. The mod rewrites this automatically every time you move the slider in-game, so you don't need to touch it by hand after the first launch. |
+| Field          | Required | Description |
+|-----------------|:---:|-------------|
+| `id`             | yes | Unique identifier for the controller (lowercase, no spaces). Cannot match a vanilla category name (`master`, `music`, `records`, `weather`, `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`). |
+| `default_name`   | yes | English label shown in the menu. Used as-is unless a resource pack (or another mod) supplies a translation - see below. |
+| `volume`         | no | Initial volume, `0.0`-`1.0`. Default `1.0`. The mod rewrites this automatically every time you move the slider in-game, so you don't need to touch it by hand after the first launch. |
 
-Example - a modpack wants its own main menu music slider, plus one for a tavern ambience mod:
+Example - pre-declaring the label/order for two controllers a couple of installed mods are expected
+to register sounds for via the API:
 
 ```json
 [
-  { "id": "menu_music", "sounds": ["minecraft:music.menu"] },
-  { "id": "tavern_music", "sounds": ["mytavernmod:music.tavern_loop"] }
+  { "id": "menu_music", "default_name": "Menu Music" },
+  { "id": "tavern_music", "default_name": "Tavern Music" }
 ]
 ```
+
+### Translating a controller's name via resource pack
+
+Every controller's label uses the translation key `soundCategory.<id>` if one exists for the
+player's current language, falling back to `default_name` (JSON) or the name passed to the API
+otherwise. A resource pack can add that translation for any controller - JSON- or API-defined -
+without touching `config/` at all, just by shipping a lang file:
+
+```
+assets/onemoreaudiocontroller/lang/it_it.json
+```
+```json
+{
+  "soundCategory.menu_music": "Musica Menù"
+}
+```
+This is the only thing a resource pack can contribute to a controller: a translated label. It
+can't create a working controller or attach sounds to one - see part 2 for that.
 
 ### `orders.json` - the order sliders appear in
 
@@ -84,11 +108,12 @@ Rules:
 
 ### `externalcontroller.json` - read-only, generated by the mod
 
-Whenever a mod registers a controller through the API (see below), this mod saves it here along
-with its current volume. This file exists **only** so you can see which ids are already taken by
-other mods' code when hand-editing `controllers.json`, to avoid reusing the same id. Don't edit it
-by hand: it's regenerated on every launch and every volume change, and it is never read as a
-source of new controllers (only to restore the saved volume of an API-registered controller).
+Whenever a mod registers a controller through the API (see below), this mod saves it here - id,
+default name, the sounds it controls, and its current volume. This file exists **only** so you can
+see which ids (and sounds) are already taken by other mods' code when hand-editing
+`controllers.json`, to avoid reusing the same id. Don't edit it by hand: it's regenerated on every
+launch and every volume change, and it is never read as a source of new controllers (only to
+restore the saved volume of an API-registered controller).
 
 If `controllers.json` and an API-registered controller ever use the same id, **the API always
 wins**: the JSON entry is skipped, with a warning in the log pointing you to
@@ -98,8 +123,10 @@ wins**: the JSON entry is skipped, with a warning in the log pointing you to
 
 ## 2. API for developers
 
-If you're writing a mod (e.g. a guns mod) and want your own independent slider without asking the
-user to edit JSON, register it in code with `OneMoreAudioControllerApi`.
+Sound assignment is always a code concern. If you're writing a mod (e.g. a guns mod) and want your
+own independent slider, register it - id, label, and the sounds it controls - in code with
+`OneMoreAudioControllerApi`. This is the only way to give a controller working sounds; JSON alone
+never can (see part 1).
 
 ### Dependency
 
@@ -125,17 +152,16 @@ If your mod also needs to work without `onemoreaudiocontroller` installed, wrap 
 import net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi;
 import net.minecraft.resources.ResourceLocation;
 
-// Label taken from soundCategory.mygunmod_gun_sounds in your lang files
 OneMoreAudioControllerApi.registerController(
         "mygunmod_gun_sounds",
+        "Gun Sounds", // English fallback label; translatable via soundCategory.mygunmod_gun_sounds
         new ResourceLocation("mygunmod", "gun_shot"),
         new ResourceLocation("mygunmod", "gun_reload")
 );
 
-// Or with an explicit translation key
+// Or without a label - it's auto-generated from the id ("gun_sounds" -> "Gun Sounds")
 OneMoreAudioControllerApi.registerController(
         "mygunmod_gun_sounds",
-        "mygunmod.options.gun_sounds",
         new ResourceLocation("mygunmod", "gun_shot"),
         new ResourceLocation("mygunmod", "gun_reload")
 );
