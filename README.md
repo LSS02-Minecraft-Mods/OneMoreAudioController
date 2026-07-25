@@ -22,10 +22,15 @@ mods like **Catalogue**).
 
 ## 1. JSON configuration
 
-The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch.
-Both start out empty (`[]`): the mod ships with **no** predefined controllers - you (or a modpack,
-or another mod) decide what goes here. The `menu_music` controller used in the examples below is
-just that, an example: if you want it, define it yourself.
+The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch:
+
+- `controllers.json` starts empty (`[]`) - the mod ships with **no** predefined controllers, you
+  (or a modpack, or another mod) decide what goes here. The `menu_music` controller used in the
+  examples below is just that, an example: if you want it, define it yourself.
+- `orders.json` starts pre-filled with every vanilla category (`music`, `records`, `weather`,
+  `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`), so it's immediately editable
+  without having to look up valid ids first. If you delete one of those lines, the mod adds it
+  back to the file the next time it loads - only custom controller ids are ever left out.
 
 ### `controllers.json` - which controllers exist
 
@@ -50,12 +55,11 @@ Example - a modpack wants its own main menu music slider, plus one for a tavern 
 ]
 ```
 
-### `order.json` - the order sliders appear in
+### `orders.json` - the order sliders appear in
 
 List of ids (vanilla categories in lowercase + custom controller ids) that decides how they're
-paired up two-by-two in the grid. With nothing listed (the default), sliders fall back to plain
-vanilla category order, with any custom controller appended at the end. Continuing the example
-above:
+paired up two-by-two in the grid. Ships pre-filled with every vanilla category; add your own
+controller ids wherever you want them to appear. Continuing the example above:
 
 ```json
 [
@@ -151,7 +155,7 @@ Practical rules:
   its sound list), keeping whatever volume the user already set.
 - The volume is saved automatically to `externalcontroller.json` on every slider change and
   restored on the next launch, no extra code needed on your side.
-- If your id isn't listed in `order.json`, your slider still shows up, appended after every other
+- If your id isn't listed in `orders.json`, your slider still shows up, appended after every other
   controller.
 
 ---
@@ -161,7 +165,7 @@ Practical rules:
 The mod registers Forge's vanilla `ConfigScreenHandler`, so the "Config" button in the Mods menu
 and mods like **Catalogue** open this same Music & Sounds screen directly, with every slider
 (vanilla + JSON + API) already in the configured order. Every time it opens, `controllers.json` and
-`order.json` are reloaded from disk, so you can edit the JSON files, reopen that screen, and see
+`orders.json` are reloaded from disk, so you can edit the JSON files, reopen that screen, and see
 the changes immediately - no need to restart Minecraft.
 
 ---

@@ -20,7 +20,7 @@ import java.util.Locale;
 
 /**
  * Rebuilds the row order of the Music &amp; Sounds screen (Master keeps its own row) from
- * {@code config/onemoreaudiocontroller/order.json}, mixing vanilla categories and JSON-defined
+ * {@code config/onemoreaudiocontroller/orders.json}, mixing vanilla categories and JSON-defined
  * custom controllers. Reloads both JSON configs every time this runs, so edits made externally -
  * or through this same screen when opened via Catalogue's "Config" button - apply immediately.
  */
@@ -48,7 +48,7 @@ public abstract class SoundOptionsScreenMixin {
             if (definition != null) {
                 result.add(CustomSoundOptions.build(definition));
             } else {
-                LOGGER.warn("[onemoreaudiocontroller] Unknown id '{}' in order.json, skipping", id);
+                LOGGER.warn("[onemoreaudiocontroller] Unknown id '{}' in orders.json, skipping", id);
             }
         }
         cir.setReturnValue(result.toArray(new OptionInstance<?>[0]));

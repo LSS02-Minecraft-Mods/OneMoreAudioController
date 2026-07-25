@@ -40,8 +40,10 @@ import java.util.Set;
  * </ul>
  * If both sources define the same id, the API entry wins and the JSON one is skipped with a
  * warning. Final display order is only computed once, in {@link #recompute()}, after both sources
- * have contributed: entries from {@code order.json} come first (in that order), then everything
- * else (remaining vanilla categories, then remaining controllers) is appended.
+ * have contributed: entries from {@code orders.json} come first (in that order), then everything
+ * else (remaining vanilla categories, then remaining controllers) is appended. Every vanilla
+ * category is automatically written into {@code orders.json} itself (not just used as an in-memory
+ * fallback), so the file is always a complete, editable list.
  */
 public final class AudioControllerManager {
 
@@ -53,13 +55,7 @@ public final class AudioControllerManager {
             []
             """;
 
-    // Empty by default: with nothing listed here, the "remaining entries" step in recompute()
-    // falls back to plain vanilla category order. See README.md for how to customize this.
-    private static final String DEFAULT_ORDER = """
-            []
-            """;
-
-    // ---- Layer 1: JSON (controllers.json / order.json), refreshed by reload() ----
+    // ---- Layer 1: JSON (controllers.json / orders.json), refreshed by reload() ----
     private static volatile Map<String, ControllerDefinition> jsonControllers = Map.of();
     private static volatile List<String> orderFileEntries = List.of();
 
@@ -97,20 +93,19 @@ public final class AudioControllerManager {
         return configDir().resolve("controllers.json");
     }
 
-    private static Path orderFile() {
-        return configDir().resolve("order.json");
+    private static Path ordersFile() {
+        return configDir().resolve("orders.json");
     }
 
     private static Path externalControllersFile() {
         return configDir().resolve("externalcontroller.json");
     }
 
-    /** Re-reads controllers.json and order.json from disk. Safe to call repeatedly (e.g. every time the Sound Options screen opens). */
+    /** Re-reads controllers.json and orders.json from disk. Safe to call repeatedly (e.g. every time the Sound Options screen opens). */
     public static synchronized void reload() {
         try {
             Files.createDirectories(configDir());
             ensureDefault(controllersFile(), DEFAULT_CONTROLLERS);
-            ensureDefault(orderFile(), DEFAULT_ORDER);
         } catch (IOException e) {
             LOGGER.error("[onemoreaudiocontroller] Failed to create default config files", e);
             return;
@@ -134,19 +129,66 @@ public final class AudioControllerManager {
             LOGGER.error("[onemoreaudiocontroller] Failed to read controllers.json, no JSON controllers will be available", e);
         }
 
-        List<String> newOrderFileEntries = new ArrayList<>();
-        try {
-            JsonArray orderJson = JsonParser.parseString(Files.readString(orderFile())).getAsJsonArray();
-            for (JsonElement element : orderJson) {
-                newOrderFileEntries.add(element.getAsString());
-            }
-        } catch (Exception e) {
-            LOGGER.error("[onemoreaudiocontroller] Failed to read order.json", e);
-        }
+        List<String> newOrderFileEntries = loadOrEnsureOrdersFile();
 
         jsonControllers = Map.copyOf(newJsonControllers);
         orderFileEntries = List.copyOf(newOrderFileEntries);
         recompute();
+    }
+
+    /**
+     * Reads orders.json (creating it pre-filled with every vanilla category if missing), then
+     * makes sure every vanilla category is present in the file itself - not just used as an
+     * in-memory fallback - appending and rewriting the file if any are missing. Custom controller
+     * ids (JSON or API) are never force-written here, only vanilla categories are.
+     */
+    private static List<String> loadOrEnsureOrdersFile() {
+        List<String> entries = new ArrayList<>();
+        boolean fileExisted = Files.exists(ordersFile());
+        if (fileExisted) {
+            try {
+                JsonArray orderJson = JsonParser.parseString(Files.readString(ordersFile())).getAsJsonArray();
+                for (JsonElement element : orderJson) {
+                    entries.add(element.getAsString());
+                }
+            } catch (Exception e) {
+                LOGGER.error("[onemoreaudiocontroller] Failed to read orders.json", e);
+            }
+        }
+
+        boolean changed = !fileExisted;
+        for (String vanillaId : vanillaCategoryIds()) {
+            if (!entries.contains(vanillaId)) {
+                entries.add(vanillaId);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            saveOrdersFile(entries);
+        }
+        return entries;
+    }
+
+    private static List<String> vanillaCategoryIds() {
+        List<String> ids = new ArrayList<>();
+        for (SoundSource source : SoundSource.values()) {
+            if (source != SoundSource.MASTER) {
+                ids.add(source.name().toLowerCase(Locale.ROOT));
+            }
+        }
+        return ids;
+    }
+
+    private static void saveOrdersFile(List<String> entries) {
+        JsonArray array = new JsonArray();
+        entries.forEach(array::add);
+        try {
+            Files.createDirectories(configDir());
+            Files.writeString(ordersFile(), GSON.toJson(array));
+        } catch (IOException e) {
+            LOGGER.error("[onemoreaudiocontroller] Failed to save orders.json", e);
+        }
     }
 
     /**
@@ -228,7 +270,7 @@ public final class AudioControllerManager {
             }
             boolean known = isVanillaNonMasterCategory(rawId) || merged.containsKey(rawId);
             if (!known) {
-                LOGGER.warn("[onemoreaudiocontroller] Unknown id '{}' in order.json, skipping", rawId);
+                LOGGER.warn("[onemoreaudiocontroller] Unknown id '{}' in orders.json, skipping", rawId);
                 continue;
             }
             if (seen.add(rawId)) {
