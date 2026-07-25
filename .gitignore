@@ -1,0 +1,45 @@
+# Gradle
+.gradle/
+build/
+out/
+mcmodsrepo/
+
+# Never ignore the Gradle wrapper itself - it lets others build without installing Gradle.
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+
+# Minecraft/Forge run & data-gen directories (local test instances, logs, saves, generated resources)
+run/
+run-data/
+logs/
+src/generated/
+
+# Forge MDK leftovers
+forge*changelog.txt
+forge_README.txt
+
+# Eclipse
+bin/
+*.launch
+.settings/
+.metadata/
+.classpath
+.project
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
