@@ -48,23 +48,15 @@ public final class AudioControllerManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    // No controllers are bundled by default - see README.md for how to define your own.
     private static final String DEFAULT_CONTROLLERS = """
-            [
-              {
-                "id": "menu_music",
-                "sounds": ["minecraft:music.menu"]
-              }
-            ]
+            []
             """;
 
+    // Empty by default: with nothing listed here, the "remaining entries" step in recompute()
+    // falls back to plain vanilla category order. See README.md for how to customize this.
     private static final String DEFAULT_ORDER = """
-            [
-              "music", "menu_music",
-              "records", "voice",
-              "ambient", "weather",
-              "hostile", "neutral",
-              "players", "blocks"
-            ]
+            []
             """;
 
     // ---- Layer 1: JSON (controllers.json / order.json), refreshed by reload() ----

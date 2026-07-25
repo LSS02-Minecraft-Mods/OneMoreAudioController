@@ -22,22 +22,15 @@ mods like **Catalogue**).
 
 ## 1. JSON configuration
 
-The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch
-with default values.
+The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch.
+Both start out empty (`[]`): the mod ships with **no** predefined controllers - you (or a modpack,
+or another mod) decide what goes here. The `menu_music` controller used in the examples below is
+just that, an example: if you want it, define it yourself.
 
 ### `controllers.json` - which controllers exist
 
 Each entry is a controller: an id, the sounds it should control, and (after you first move the
 slider in-game) the saved volume.
-
-```json
-[
-  {
-    "id": "menu_music",
-    "sounds": ["minecraft:music.menu"]
-  }
-]
-```
 
 Fields:
 
@@ -48,7 +41,7 @@ Fields:
 | `translationKey`     | no | Translation key used for the label shown in the menu. Default: `soundCategory.<id>`. Add the key to your lang files (`assets/<namespace>/lang/en_us.json`, etc.) or to a resource pack. |
 | `volume`             | no | Initial volume, `0.0`-`1.0`. Default `1.0`. The mod rewrites this automatically every time you move the slider in-game, so you don't need to touch it by hand after the first launch. |
 
-Example - a modpack wants a separate slider for an ambience mod's music:
+Example - a modpack wants its own main menu music slider, plus one for a tavern ambience mod:
 
 ```json
 [
@@ -60,7 +53,9 @@ Example - a modpack wants a separate slider for an ambience mod's music:
 ### `order.json` - the order sliders appear in
 
 List of ids (vanilla categories in lowercase + custom controller ids) that decides how they're
-paired up two-by-two in the grid:
+paired up two-by-two in the grid. With nothing listed (the default), sliders fall back to plain
+vanilla category order, with any custom controller appended at the end. Continuing the example
+above:
 
 ```json
 [
