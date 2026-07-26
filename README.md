@@ -12,25 +12,51 @@ sounds assigned to it, without touching Master, Players, or any other vanilla ca
 Two separate concerns, two separate mechanisms:
 
 1. **Which controllers exist, and in what order** - this is configuration: `controllers.json` and
-   `orders.json`, editable by anyone (a modpack, a resource pack, an end user), no code needed.
+   `orders.json`, editable either by hand (a modpack, a resource pack, an end user) or in-game
+   through the **Controller Manager** screen (see part 1) - no code needed either way.
 2. **Which sounds a controller actually affects** - this is a code concern, owned by whichever mod's
    sounds they are. It's set exclusively through the `OneMoreAudioControllerApi` Java API, never
    through JSON: only the mod that ships a sound really knows which controller it belongs under.
 
 Everything applies **without restarting the game**: both JSON files are reloaded every time you
-open the Music & Sounds screen (including when opened from the Mods menu "Config" button or from
-mods like **Catalogue**).
+open the Controller Manager or Music & Sounds screens (including when opened from the Mods menu
+"Config" button or from mods like **Catalogue**).
 
 ---
 
-## 1. JSON configuration
+## 1. In-game: the Controller Manager screen
+
+The "Config" button in the Mods menu, and mods like **Catalogue**, open this mod's own
+**Controller Manager** screen instead of jumping straight to Music & Sounds. From there you can,
+entirely in-game:
+
+- **Add controller** - creates a new JSON-backed entry (id + display name), the in-game equivalent
+  of hand-adding an entry to `controllers.json`. Just like a hand-added entry, it stays a visible
+  but silent slider until some mod registers sounds for that same id through the API (part 3).
+- **Rinomina / Elimina** (Rename / Delete) - shown next to any controller defined in
+  `controllers.json`. Vanilla categories and API-registered controllers can't be renamed or deleted
+  from here: an API controller's name and existence are owned by the mod that registered it and get
+  redefined on every launch, so editing them here would just be undone at the next restart. You can
+  still reorder them (see below).
+- **Drag and drop** any row (grab anywhere on it, except the Rename/Delete text) to reorder it -
+  vanilla, JSON, and API controllers alike. Released changes are written straight to `orders.json`.
+- **Apri Music & Sounds** (Open Sound Options) - jumps to the actual sliders to set volumes; **Fatto**
+  (Done) returns to the previous screen.
+
+This screen is just a GUI on top of `controllers.json`/`orders.json`, so anything it can't do
+(assigning sounds, renaming/deleting an API controller) still requires either a JSON edit or code
+through the API, exactly as described below.
+
+---
+
+## 2. JSON configuration
 
 The files live in `config/onemoreaudiocontroller/` and are created automatically on first launch:
 
 - `controllers.json` starts empty (`[]`) - the mod ships with **no** predefined controllers, you
   (or a modpack, or another mod) decide what goes here. The `menu_music` controller used in the
   examples below is just that, an example: it's not shipped, and it isn't functional until some
-  mod registers sounds for it through the API (see part 2).
+  mod registers sounds for it through the API (see part 3).
 - `orders.json` starts pre-filled with every vanilla category (`music`, `records`, `weather`,
   `blocks`, `hostile`, `neutral`, `players`, `ambient`, `voice`), so it's immediately editable
   without having to look up valid ids first. If you delete one of those lines, the mod adds it
@@ -79,7 +105,7 @@ assets/onemoreaudiocontroller/lang/it_it.json
 }
 ```
 This is the only thing a resource pack can contribute to a controller: a translated label. It
-can't create a working controller or attach sounds to one - see part 2 for that.
+can't create a working controller or attach sounds to one - see part 3 for that.
 
 ### `orders.json` - the order sliders appear in
 
@@ -123,12 +149,12 @@ wins**: the JSON entry is skipped, with a warning in the log pointing you to
 
 ---
 
-## 2. API for developers
+## 3. API for developers
 
 Sound assignment is always a code concern. If you're writing a mod (e.g. a guns mod) and want your
 own independent slider, register it - id, label, and the sounds it controls - in code with
 `OneMoreAudioControllerApi`. This is the only way to give a controller working sounds; JSON alone
-never can (see part 1).
+never can (see part 2).
 
 ### Dependency
 
@@ -224,10 +250,9 @@ Practical rules:
 ## Compatibility with Catalogue / the Mods menu
 
 The mod registers Forge's vanilla `ConfigScreenHandler`, so the "Config" button in the Mods menu
-and mods like **Catalogue** open this same Music & Sounds screen directly, with every slider
-(vanilla + JSON + API) already in the configured order. Every time it opens, `controllers.json` and
-`orders.json` are reloaded from disk, so you can edit the JSON files, reopen that screen, and see
-the changes immediately - no need to restart Minecraft.
+and mods like **Catalogue** open the Controller Manager screen described in part 1. Every time it
+opens, `controllers.json` and `orders.json` are reloaded from disk, so you can edit the JSON files
+by hand, reopen that screen, and see the changes immediately - no need to restart Minecraft.
 
 ---
 

@@ -121,7 +121,7 @@ public final class AudioControllerManager {
 
         Map<String, ControllerDefinition> newJsonControllers = new LinkedHashMap<>();
         try {
-            JsonArray controllersJson = JsonParser.parseString(Files.readString(controllersFile())).getAsJsonArray();
+            JsonArray controllersJson = JsonParser.parseString(stripBom(Files.readString(controllersFile()))).getAsJsonArray();
             for (JsonElement element : controllersJson) {
                 ControllerDefinition definition = parseController(element);
                 if (definition == null) {
@@ -153,14 +153,16 @@ public final class AudioControllerManager {
     private static List<String> loadOrEnsureOrdersFile() {
         List<String> entries = new ArrayList<>();
         boolean fileExisted = Files.exists(ordersFile());
+        boolean readOk = true;
         if (fileExisted) {
             try {
-                JsonArray orderJson = JsonParser.parseString(Files.readString(ordersFile())).getAsJsonArray();
+                JsonArray orderJson = JsonParser.parseString(stripBom(Files.readString(ordersFile()))).getAsJsonArray();
                 for (JsonElement element : orderJson) {
                     entries.add(element.getAsString());
                 }
             } catch (Exception e) {
-                LOGGER.error("[onemoreaudiocontroller] Failed to read orders.json", e);
+                LOGGER.error("[onemoreaudiocontroller] Failed to read orders.json, leaving the file untouched on disk", e);
+                readOk = false;
             }
         }
 
@@ -172,10 +174,17 @@ public final class AudioControllerManager {
             }
         }
 
-        if (changed) {
+        // Never overwrite a file that exists but failed to parse: doing so would silently discard
+        // whatever custom order the player had and replace it with just the vanilla categories,
+        // and it would do so again on every future launch if the underlying issue never gets fixed.
+        if (changed && readOk) {
             saveOrdersFile(entries);
         }
         return entries;
+    }
+
+    private static String stripBom(String content) {
+        return content.startsWith("﻿") ? content.substring(1) : content;
     }
 
     private static List<String> vanillaCategoryIds() {
@@ -270,6 +279,113 @@ public final class AudioControllerManager {
         } catch (Exception e) {
             LOGGER.error("[onemoreaudiocontroller] Failed to read externalcontroller.json, saved volumes for API controllers will reset", e);
         }
+    }
+
+    /** Why a call to {@link #addJsonController(String, String)} was rejected, for GUI error messages. */
+    public enum AddControllerResult {
+        OK, BLANK_ID, INVALID_ID, RESERVED_ID, DUPLICATE_ID
+    }
+
+    private static final java.util.regex.Pattern VALID_ID = java.util.regex.Pattern.compile("[a-z0-9_]+");
+
+    /**
+     * Defines a new JSON-backed controller from in-game (the controller manager screen), the same
+     * as hand-adding an entry to {@code controllers.json}. Persists immediately to both
+     * controllers.json (the new entry) and orders.json (appended at the end).
+     */
+    public static synchronized AddControllerResult addJsonController(String id, String defaultName) {
+        if (id == null || id.isBlank()) {
+            return AddControllerResult.BLANK_ID;
+        }
+        if (!VALID_ID.matcher(id).matches()) {
+            return AddControllerResult.INVALID_ID;
+        }
+        if (isReservedId(id)) {
+            return AddControllerResult.RESERVED_ID;
+        }
+        if (jsonControllers.containsKey(id) || apiControllers.containsKey(id)) {
+            return AddControllerResult.DUPLICATE_ID;
+        }
+
+        String resolvedDefaultName = (defaultName == null || defaultName.isBlank()) ? prettify(id) : defaultName;
+        Map<String, ControllerDefinition> newJson = new LinkedHashMap<>(jsonControllers);
+        newJson.put(id, new ControllerDefinition(id, resolvedDefaultName, Set.of(), 1.0));
+        jsonControllers = Map.copyOf(newJson);
+        saveJsonControllers();
+
+        List<String> newOrder = new ArrayList<>(orderFileEntries);
+        if (!newOrder.contains(id)) {
+            newOrder.add(id);
+        }
+        orderFileEntries = List.copyOf(newOrder);
+        saveOrdersFile(newOrder);
+
+        recompute();
+        return AddControllerResult.OK;
+    }
+
+    /** Removes a JSON-backed controller (from both controllers.json and orders.json). Vanilla and API controllers can't be removed this way. */
+    public static synchronized boolean removeJsonController(String id) {
+        if (!jsonControllers.containsKey(id)) {
+            return false;
+        }
+        Map<String, ControllerDefinition> newJson = new LinkedHashMap<>(jsonControllers);
+        newJson.remove(id);
+        jsonControllers = Map.copyOf(newJson);
+        saveJsonControllers();
+
+        List<String> newOrder = new ArrayList<>(orderFileEntries);
+        newOrder.remove(id);
+        orderFileEntries = List.copyOf(newOrder);
+        saveOrdersFile(newOrder);
+
+        recompute();
+        return true;
+    }
+
+    /** Renames a JSON-backed controller's display name in controllers.json. Vanilla and API controllers can't be renamed this way. */
+    public static synchronized boolean renameJsonController(String id, String newDefaultName) {
+        ControllerDefinition existing = jsonControllers.get(id);
+        if (existing == null) {
+            return false;
+        }
+        String resolved = (newDefaultName == null || newDefaultName.isBlank()) ? prettify(id) : newDefaultName;
+        Map<String, ControllerDefinition> newJson = new LinkedHashMap<>(jsonControllers);
+        newJson.put(id, new ControllerDefinition(id, resolved, existing.sounds, existing.volume));
+        jsonControllers = Map.copyOf(newJson);
+        saveJsonControllers();
+
+        recompute();
+        return true;
+    }
+
+    /** Overwrites the full display order (from in-game drag-and-drop reordering) and persists it to orders.json. */
+    public static synchronized void setOrder(List<String> newOrder) {
+        List<String> filtered = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String id : newOrder) {
+            if (id == null || id.equalsIgnoreCase("master")) {
+                continue;
+            }
+            if (seen.add(id)) {
+                filtered.add(id);
+            }
+        }
+        orderFileEntries = List.copyOf(filtered);
+        saveOrdersFile(filtered);
+        recompute();
+    }
+
+    public static boolean isVanillaCategory(String id) {
+        return isVanillaNonMasterCategory(id);
+    }
+
+    public static synchronized boolean isApiControlled(String id) {
+        return apiControllers.containsKey(id);
+    }
+
+    public static boolean isJsonControlled(String id) {
+        return jsonControllers.containsKey(id);
     }
 
     /** Merges both layers into the snapshot the mixins actually read. API entries win on id collisions. */

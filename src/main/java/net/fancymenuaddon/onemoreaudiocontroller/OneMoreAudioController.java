@@ -1,6 +1,6 @@
 package net.fancymenuaddon.onemoreaudiocontroller;
 
-import net.minecraft.client.gui.screens.SoundOptionsScreen;
+import net.fancymenuaddon.onemoreaudiocontroller.client.gui.ControllerManagerScreen;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -15,12 +15,13 @@ public class OneMoreAudioController {
         AudioControllerManager.reload();
 
         // Lets external mod-list GUIs (Catalogue, Forge's own Mods screen "Config" button, ...)
-        // open a settings screen for this mod. We reuse the vanilla Sound Options screen itself,
-        // since that's where every slider - vanilla and JSON-defined - already lives and reloads live.
+        // open a settings screen for this mod. We open our own controller manager screen, which
+        // lets the player add/rename/delete/reorder controllers in-game, with a shortcut from there
+        // into the vanilla Sound Options screen to actually move the sliders.
         ModLoadingContext.get().registerExtensionPoint(
                 ConfigScreenHandler.ConfigScreenFactory.class,
                 () -> new ConfigScreenHandler.ConfigScreenFactory(
-                        (minecraft, screen) -> new SoundOptionsScreen(screen, minecraft.options))
+                        (minecraft, screen) -> new ControllerManagerScreen(screen))
         );
     }
 }
