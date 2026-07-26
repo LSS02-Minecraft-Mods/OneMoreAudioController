@@ -1,4 +1,4 @@
-package net.fancymenuaddon.onemoreaudiocontroller.runtime;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.runtime;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
@@ -33,7 +33,7 @@ import java.util.Map;
  * {@code Options.createSoundSliderOptionInstance}: that factory turns its label straight into
  * {@code Component.translatable(key)} with no fallback, so a controller with no matching lang entry
  * (the normal case for a custom one) would show the raw key ({@code soundCategory.prova}) instead of
- * its {@code default_name}. {@link net.fancymenuaddon.onemoreaudiocontroller.client.CustomSoundOptions}
+ * its {@code default_name}. {@link net.ngsh.shydevelopment.onemoreaudiocontroller.client.CustomSoundOptions}
  * already solves exactly this for non-promoted sliders with {@code translatableWithFallback}; this
  * mirrors that, wired to vanilla's own {@code SoundManager} instead so live volume changes still
  * apply immediately and persist to {@code options.txt} exactly like a real vanilla category.
@@ -62,7 +62,7 @@ public final class OptionsSoundSourcePatcher {
             return;
         }
         try {
-            Field mapField = Options.class.getDeclaredField("soundSourceVolumes");
+            Field mapField = findSoundSourceVolumesField();
             long mapOffset = UNSAFE.objectFieldOffset(mapField);
             Map<SoundSource, OptionInstance<Double>> current =
                     (Map<SoundSource, OptionInstance<Double>>) UNSAFE.getObject(options, mapOffset);
@@ -91,6 +91,23 @@ public final class OptionsSoundSourcePatcher {
             LOGGER.error("[onemoreaudiocontroller] Failed to sync the live volume slider for SoundSource '{}'; " +
                     "it'll fall back to this mod's own slider", source.getName(), e);
         }
+    }
+
+    /**
+     * {@code Options}'s own {@code soundSourceVolumes} field, found by type rather than by that
+     * literal name: the same literal-name lookup approach in {@code SoundSourceEnumInjector} was
+     * confirmed (via a real game log, not just in theory) to throw {@code NoSuchFieldException} at
+     * runtime even though the exact same name resolves fine against the mapped dev jar - see that
+     * class's {@code findNameField()} for the full story. {@code Options} declares exactly one field
+     * of type {@code Map}, so matching on that is unambiguous.
+     */
+    private static Field findSoundSourceVolumesField() throws NoSuchFieldException {
+        for (Field field : Options.class.getDeclaredFields()) {
+            if (Map.class.isAssignableFrom(field.getType())) {
+                return field;
+            }
+        }
+        throw new NoSuchFieldException("Options soundSourceVolumes field");
     }
 
     private static OptionInstance<Double> buildSlider(SoundSource source, String defaultName, double initialVolume) {

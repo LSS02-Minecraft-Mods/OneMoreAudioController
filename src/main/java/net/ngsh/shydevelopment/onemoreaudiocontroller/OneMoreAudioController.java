@@ -1,6 +1,7 @@
-package net.fancymenuaddon.onemoreaudiocontroller;
+package net.ngsh.shydevelopment.onemoreaudiocontroller;
 
-import net.fancymenuaddon.onemoreaudiocontroller.client.gui.ControllerManagerScreen;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.client.gui.ControllerManagerScreen;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.runtime.GeneratedTranslationPack;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -12,6 +13,8 @@ public class OneMoreAudioController {
     public static final String MODID = "onemoreaudiocontroller";
 
     public OneMoreAudioController(FMLJavaModLoadingContext context) {
+        context.getModEventBus().addListener(GeneratedTranslationPack::addPackFinders);
+
         AudioControllerManager.reload();
         AudioControllerManager.promoteConfiguredControllersAtBoot();
 

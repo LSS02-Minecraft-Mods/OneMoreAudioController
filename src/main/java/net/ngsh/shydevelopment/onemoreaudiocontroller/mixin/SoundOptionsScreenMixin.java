@@ -1,8 +1,8 @@
-package net.fancymenuaddon.onemoreaudiocontroller.mixin;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.mixin;
 
 import com.mojang.logging.LogUtils;
-import net.fancymenuaddon.onemoreaudiocontroller.AudioControllerManager;
-import net.fancymenuaddon.onemoreaudiocontroller.client.CustomSoundOptions;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.AudioControllerManager;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.client.CustomSoundOptions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.client.Options;

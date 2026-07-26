@@ -1,6 +1,6 @@
-package net.fancymenuaddon.onemoreaudiocontroller.api;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.api;
 
-import net.fancymenuaddon.onemoreaudiocontroller.AudioControllerManager;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.AudioControllerManager;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Arrays;

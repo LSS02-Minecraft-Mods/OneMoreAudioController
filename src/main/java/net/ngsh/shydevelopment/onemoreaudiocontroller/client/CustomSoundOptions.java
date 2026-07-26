@@ -1,6 +1,6 @@
-package net.fancymenuaddon.onemoreaudiocontroller.client;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.client;
 
-import net.fancymenuaddon.onemoreaudiocontroller.AudioControllerManager;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.AudioControllerManager;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.client.Options;
 import net.minecraft.network.chat.CommonComponents;

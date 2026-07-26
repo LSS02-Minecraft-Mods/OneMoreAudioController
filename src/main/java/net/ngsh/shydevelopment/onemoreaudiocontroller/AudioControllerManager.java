@@ -1,4 +1,4 @@
-package net.fancymenuaddon.onemoreaudiocontroller;
+package net.ngsh.shydevelopment.onemoreaudiocontroller;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -7,8 +7,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
-import net.fancymenuaddon.onemoreaudiocontroller.runtime.OptionsSoundSourcePatcher;
-import net.fancymenuaddon.onemoreaudiocontroller.runtime.SoundSourceEnumInjector;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.runtime.GeneratedTranslationPack;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.runtime.OptionsSoundSourcePatcher;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.runtime.SoundSourceEnumInjector;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
@@ -35,9 +36,9 @@ import java.util.Set;
  *   <li><b>JSON</b> - hand/modpack-edited entries in {@code config/onemoreaudiocontroller/controllers.json}.
  *   Reloaded from disk every time {@link #reload()} runs. A JSON entry is only an {@code id} and a
  *   {@code default_name}: it never lists sound events - see the class doc on
- *   {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for why.</li>
+ *   {@link net.ngsh.shydevelopment.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for why.</li>
  *   <li><b>API</b> - entries other mods add in code via
- *   {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi}, sound events
+ *   {@link net.ngsh.shydevelopment.onemoreaudiocontroller.api.OneMoreAudioControllerApi}, sound events
  *   included: only the mod that owns those sounds knows which ones belong under its controller.
  *   These are mirrored to {@code config/onemoreaudiocontroller/externalcontroller.json} purely so
  *   modpack authors editing controllers.json can see which ids are already taken by mod code - that
@@ -224,7 +225,7 @@ public final class AudioControllerManager {
 
     /**
      * Registers (or redefines) a controller in code, sounds included. See
-     * {@link net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for the
+     * {@link net.ngsh.shydevelopment.onemoreaudiocontroller.api.OneMoreAudioControllerApi} for the
      * public entry point - mods should not call this class directly.
      */
     public static synchronized void registerApiController(String id, String defaultName, Collection<ResourceLocation> sounds) {
@@ -458,6 +459,22 @@ public final class AudioControllerManager {
         mergedById = Map.copyOf(merged);
         mergedBySound = Map.copyOf(bySound);
         finalOrder = List.copyOf(newOrder);
+
+        GeneratedTranslationPack.regenerate();
+    }
+
+    /**
+     * {@code id -> default_name} for every controller currently known (JSON + API merged). Only
+     * source used to (re)build {@link GeneratedTranslationPack}'s generated {@code en_us.json} - a
+     * real translation from a lang file or resource pack always takes precedence over these, since
+     * they're just the last-resort fallback for ids nobody has translated yet.
+     */
+    public static Map<String, String> allDefaultNames() {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (ControllerDefinition definition : mergedById.values()) {
+            result.put(definition.id, definition.defaultName);
+        }
+        return result;
     }
 
     private static boolean isVanillaNonMasterCategory(String id) {

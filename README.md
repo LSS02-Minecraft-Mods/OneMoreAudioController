@@ -210,7 +210,7 @@ If your mod also needs to work without `onemoreaudiocontroller` installed, wrap 
 ### Usage
 
 ```java
-import net.fancymenuaddon.onemoreaudiocontroller.api.OneMoreAudioControllerApi;
+import net.ngsh.shydevelopment.onemoreaudiocontroller.api.OneMoreAudioControllerApi;
 import net.minecraft.resources.ResourceLocation;
 
 OneMoreAudioControllerApi.registerController(

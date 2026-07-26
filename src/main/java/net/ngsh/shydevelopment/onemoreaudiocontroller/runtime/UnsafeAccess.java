@@ -1,4 +1,4 @@
-package net.fancymenuaddon.onemoreaudiocontroller.runtime;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.runtime;
 
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;

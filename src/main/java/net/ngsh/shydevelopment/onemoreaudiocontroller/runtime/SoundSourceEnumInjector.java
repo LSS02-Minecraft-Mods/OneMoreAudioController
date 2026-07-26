@@ -1,4 +1,4 @@
-package net.fancymenuaddon.onemoreaudiocontroller.runtime;
+package net.ngsh.shydevelopment.onemoreaudiocontroller.runtime;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.sounds.SoundSource;
@@ -146,11 +146,28 @@ public final class SoundSourceEnumInjector {
         UNSAFE.putInt(instance, UNSAFE.objectFieldOffset(ordinalField), ordinal);
     }
 
-    /** {@code SoundSource}'s own serialized-name field (what {@code getName()} returns) - unrelated to
-     *  {@code Enum}'s own {@code name} field even though they share a field name; Java allows that fine. */
+    /**
+     * {@code SoundSource}'s own serialized-name field (what {@code getName()} returns) - unrelated to
+     * {@code Enum}'s own {@code name} field even though they're normally named the same in mapped
+     * sources. Found by type rather than by the literal name {@code "name"}: that literal lookup is
+     * what this method used to do, and it works against the mapped dev jar, but fails with a
+     * {@code NoSuchFieldException} in real games (observed live, not just in theory - see the
+     * FancyMenu channel-not-showing-up bug this fixed). {@code SoundSource} declares exactly one
+     * non-static field, so matching on "instance field of type String" is unambiguous and, like
+     * {@link #findValuesField()}, immune to whatever is renaming it.
+     */
     private static void setSerializedName(SoundSource instance, String serializedName) throws NoSuchFieldException {
-        Field nameField = SoundSource.class.getDeclaredField("name");
+        Field nameField = findNameField();
         UNSAFE.putObject(instance, UNSAFE.objectFieldOffset(nameField), serializedName);
+    }
+
+    private static Field findNameField() throws NoSuchFieldException {
+        for (Field field : SoundSource.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+                return field;
+            }
+        }
+        throw new NoSuchFieldException("SoundSource serialized-name field");
     }
 
     /** Clears {@code Class}'s cached {@code values()}/{@code valueOf()} lookup tables so they're rebuilt from the patched array. */
