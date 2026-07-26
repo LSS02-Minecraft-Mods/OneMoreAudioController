@@ -159,8 +159,8 @@ never can (see part 2).
 ### Dependency
 
 The mod is published on [JitPack](https://jitpack.io/#LSS02-Minecraft-Mods/OneMoreAudioController).
-Replace `TAG` with a release tag/commit from that page (e.g. `1.0`, or `main-SNAPSHOT` for the
-latest commit on the default branch).
+The examples below point at `1.1`, the current release - swap it for whatever tag/commit you
+actually want (JitPack builds any git tag or `main-SNAPSHOT` on demand).
 
 **Gradle** (`build.gradle`):
 
@@ -172,7 +172,7 @@ repositories {
 dependencies {
     // fg.deobf(...) remaps the published jar to match your ForgeGradle dev mappings, the same as
     // any other mod dependency added via ForgeGradle.
-    implementation fg.deobf('com.github.LSS02-Minecraft-Mods:OneMoreAudioController:TAG')
+    implementation fg.deobf('com.github.LSS02-Minecraft-Mods:OneMoreAudioController:1.1')
 }
 ```
 
@@ -189,7 +189,7 @@ dependencies {
 <dependency>
     <groupId>com.github.LSS02-Minecraft-Mods</groupId>
     <artifactId>OneMoreAudioController</artifactId>
-    <version>TAG</version>
+    <version>1.1</version>
 </dependency>
 ```
 
@@ -199,7 +199,7 @@ Then declare it as an optional dependency in your `mods.toml`, so your mod still
 [[dependencies.yourmodid]]
     modId="onemoreaudiocontroller"
     mandatory=false
-    versionRange="[1.0,)"
+    versionRange="[1.1,)"
     ordering="NONE"
     side="CLIENT"
 ```
@@ -246,6 +246,36 @@ Practical rules:
   controller.
 
 ---
+
+## Real Minecraft sound categories (experimental)
+
+Every controller - JSON or API - is also grafted onto the actual `net.minecraft.sounds.SoundSource`
+enum at runtime, as a brand new constant, not just something this mod's own mixins recognize. This
+is what lets **other mods select a controller as a genuine sound category**, the same way they'd
+pick `music` or `players` - for example FancyMenu's audio elements, which only ever offer whatever
+`SoundSource.values()` reports.
+
+- Controllers already sitting in `controllers.json` are promoted right after this mod's own
+  constructor calls `reload()` - as early as this mod itself can run, but always after vanilla's
+  `Options` (and `Minecraft.getInstance()`) already exist.
+- Controllers registered later - through the API by another mod, or added in-game through the
+  Controller Manager screen - are promoted the exact same way, the moment they're registered.
+- Either way, promoting a controller patches the already-running `Options` instance directly (its
+  vanilla sliders live in a fixed-size map that can't just grow, so this rebuilds and swaps it) so
+  the new category works immediately, slider included.
+- Once promoted, a controller's volume is driven entirely by its (now real, vanilla-native) Music &
+  Sounds slider - the same slider this mod's `SoundEngineMixin` uses for sounds assigned through the
+  API, so both stay in sync.
+
+This works by adding a real enum constant at runtime via `sun.misc.Unsafe` field writes (not
+`Field#setAccessible`, which the JVM's module system blocks for `java.base` internals without a
+`--add-opens` flag - `Unsafe` sidesteps that entirely and needs no extra JVM arguments). It's still
+JVM-internals hackery: if it ever fails, it's logged and the affected controller just falls back to
+being a mod-only channel, exactly like before this feature existed - **except if attempted before
+`Minecraft.getInstance()` exists**, which an earlier version of this feature did (as early as
+possible, right before vanilla builds `Options`) and which reliably crashed the JVM itself
+(a native access violation inside `Unsafe`, not a catchable Java exception) rather than failing
+gracefully. That's why promotion only ever happens after the game has actually started.
 
 ## Compatibility with Catalogue / the Mods menu
 

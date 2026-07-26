@@ -13,6 +13,7 @@ public class OneMoreAudioController {
 
     public OneMoreAudioController(FMLJavaModLoadingContext context) {
         AudioControllerManager.reload();
+        AudioControllerManager.promoteConfiguredControllersAtBoot();
 
         // Lets external mod-list GUIs (Catalogue, Forge's own Mods screen "Config" button, ...)
         // open a settings screen for this mod. We open our own controller manager screen, which

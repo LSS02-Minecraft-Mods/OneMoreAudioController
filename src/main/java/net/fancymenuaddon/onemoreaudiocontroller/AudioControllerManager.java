@@ -7,6 +7,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
+import net.fancymenuaddon.onemoreaudiocontroller.runtime.OptionsSoundSourcePatcher;
+import net.fancymenuaddon.onemoreaudiocontroller.runtime.SoundSourceEnumInjector;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -70,6 +73,23 @@ public final class AudioControllerManager {
     private static volatile Map<String, ControllerDefinition> mergedById = Map.of();
     private static volatile Map<ResourceLocation, ControllerDefinition> mergedBySound = Map.of();
     private static volatile List<String> finalOrder = List.of();
+
+    // ---- Layer 3: real SoundSource promotion, see SoundSourceEnumInjector/OptionsSoundSourcePatcher.
+    // Ids that made it in here are genuine Minecraft sound categories other mods can select by name
+    // (e.g. FancyMenu), not just something this mod's own mixins recognize. ----
+    private static volatile Map<String, SoundSource> promotedSources = Map.of();
+
+    /**
+     * The exact 10 vanilla category names (lowercase, {@code master} excluded - it's never a
+     * regular row), fixed regardless of what {@link SoundSource#values()} reports at any given
+     * moment. Deliberately NOT derived from the live enum: once a custom controller gets promoted
+     * to a real {@code SoundSource} (see {@link #promote}), {@code SoundSource.values()} includes
+     * it too, and this list exists specifically to keep telling those two cases apart (e.g. so a
+     * promoted controller's id doesn't start getting rejected as "reserved" on the next reload).
+     */
+    private static final List<String> TRUE_VANILLA_IDS = List.of(
+            "music", "records", "weather", "blocks", "hostile", "neutral", "players", "ambient", "voice"
+    );
 
     private AudioControllerManager() {
     }
@@ -188,13 +208,7 @@ public final class AudioControllerManager {
     }
 
     private static List<String> vanillaCategoryIds() {
-        List<String> ids = new ArrayList<>();
-        for (SoundSource source : SoundSource.values()) {
-            if (source != SoundSource.MASTER) {
-                ids.add(source.name().toLowerCase(Locale.ROOT));
-            }
-        }
-        return ids;
+        return TRUE_VANILLA_IDS;
     }
 
     private static void saveOrdersFile(List<String> entries) {
@@ -242,6 +256,7 @@ public final class AudioControllerManager {
 
         saveExternalControllers();
         recompute();
+        promote(List.of(id));
     }
 
     private static String prettify(String id) {
@@ -321,6 +336,7 @@ public final class AudioControllerManager {
         saveOrdersFile(newOrder);
 
         recompute();
+        promote(List.of(id));
         return AddControllerResult.OK;
     }
 
@@ -356,6 +372,10 @@ public final class AudioControllerManager {
         saveJsonControllers();
 
         recompute();
+        // If this id was already promoted to a real SoundSource, its slider is a standalone
+        // OptionInstance built once at promotion time - recompute() alone doesn't touch it, so
+        // without this the rename would only show up after restarting the game.
+        promote(List.of(id));
         return true;
     }
 
@@ -417,11 +437,7 @@ public final class AudioControllerManager {
             }
         }
         // Everything left over is appended afterwards: remaining vanilla categories first, then remaining controllers.
-        for (SoundSource source : SoundSource.values()) {
-            if (source == SoundSource.MASTER) {
-                continue;
-            }
-            String id = source.name().toLowerCase(Locale.ROOT);
+        for (String id : TRUE_VANILLA_IDS) {
             if (seen.add(id)) {
                 newOrder.add(id);
             }
@@ -445,11 +461,7 @@ public final class AudioControllerManager {
     }
 
     private static boolean isVanillaNonMasterCategory(String id) {
-        try {
-            return SoundSource.valueOf(id.toUpperCase(Locale.ROOT)) != SoundSource.MASTER;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        return TRUE_VANILLA_IDS.contains(id.toLowerCase(Locale.ROOT));
     }
 
     private static ControllerDefinition parseController(JsonElement element) {
@@ -473,12 +485,8 @@ public final class AudioControllerManager {
     }
 
     private static boolean isReservedId(String id) {
-        try {
-            SoundSource.valueOf(id.toUpperCase(Locale.ROOT));
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        String lower = id.toLowerCase(Locale.ROOT);
+        return lower.equals("master") || TRUE_VANILLA_IDS.contains(lower);
     }
 
     private static void ensureDefault(Path file, String content) throws IOException {
@@ -510,6 +518,70 @@ public final class AudioControllerManager {
         } else {
             saveJsonControllers();
         }
+    }
+
+    /** The real {@link SoundSource} a controller id was promoted to (see {@link #promote}), or {@code null} if it's still mod-only. */
+    public static SoundSource realSource(String id) {
+        return promotedSources.get(id);
+    }
+
+    /**
+     * Called once, from this mod's constructor, right after {@link #reload()} - promotes every
+     * controller already sitting in {@code controllers.json} at that point to a real
+     * {@link SoundSource}.
+     *
+     * <p>An earlier version of this did the injection even earlier, via a mixin right before
+     * vanilla allocates {@link net.minecraft.client.Options} inside {@code Minecraft}'s own
+     * constructor - reasoning that {@code Options} caches {@code SoundSource.values()} into a
+     * fixed-size map at construction time, so injecting after seemed like it would need extra work.
+     * It does (see {@link OptionsSoundSourcePatcher}), but that extra work turns out to be both
+     * necessary anyway (for API/in-game controllers, which only ever show up after {@code Options}
+     * already exists) and, empirically, the only reliable time to touch these JVM internals at all:
+     * injecting that early - before Forge has even begun constructing mods, while classloading
+     * itself is still in flux - crashed the JVM outright (a native {@code EXCEPTION_ACCESS_VIOLATION}
+     * inside {@code Unsafe}, not a catchable Java exception). Doing the exact same injection here,
+     * a bit later, has been reliable. So this mod never touches {@code SoundSource}/{@code Options}
+     * before {@link Minecraft#getInstance()} is available - not even for controllers known at boot.
+     */
+    public static synchronized void promoteConfiguredControllersAtBoot() {
+        promote(jsonControllers.keySet());
+    }
+
+    /**
+     * Turns each id into a real {@link SoundSource} (injecting the enum constant only the first
+     * time; every call after that is a no-op there and just returns the same one), so other mods -
+     * not just this one - can discover and select it as a genuine sound category. Also (re)syncs the
+     * live {@code Options} slider for each one (see {@link OptionsSoundSourcePatcher#syncSlider}) so
+     * the category behaves exactly like a vanilla one immediately, including picking up a rename or
+     * a delete-then-recreate under the same id - not just the very first promotion. Only ever called
+     * once {@link Minecraft#getInstance()} is available - see {@link #promoteConfiguredControllersAtBoot}
+     * for why that matters.
+     */
+    private static synchronized void promote(Collection<String> ids) {
+        Map<String, SoundSource> sources = SoundSourceEnumInjector.injectMissing(ids);
+        if (sources.isEmpty()) {
+            return;
+        }
+
+        Map<String, SoundSource> merged = new LinkedHashMap<>(promotedSources);
+        merged.putAll(sources);
+        promotedSources = Map.copyOf(merged);
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft != null) {
+            for (Map.Entry<String, SoundSource> entry : sources.entrySet()) {
+                ControllerDefinition definition = currentDefinitionOf(entry.getKey());
+                String defaultName = definition != null ? definition.defaultName : prettify(entry.getKey());
+                double fallbackVolume = definition != null ? definition.volume : 1.0;
+                OptionsSoundSourcePatcher.syncSlider(minecraft.options, entry.getValue(), defaultName, fallbackVolume);
+            }
+        }
+    }
+
+    /** Looked up directly in the two source layers rather than {@link #mergedById}, since {@link #promote} can run before {@link #recompute} has. */
+    private static ControllerDefinition currentDefinitionOf(String id) {
+        ControllerDefinition definition = apiControllers.get(id);
+        return definition != null ? definition : jsonControllers.get(id);
     }
 
     private static synchronized void saveJsonControllers() {
