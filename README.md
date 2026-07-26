@@ -247,7 +247,7 @@ Practical rules:
 
 ---
 
-## Real Minecraft sound categories (experimental)
+## Real Minecraft sound categories
 
 Every controller - JSON or API - is also grafted onto the actual `net.minecraft.sounds.SoundSource`
 enum at runtime, as a brand new constant, not just something this mod's own mixins recognize. This
@@ -255,27 +255,19 @@ is what lets **other mods select a controller as a genuine sound category**, the
 pick `music` or `players` - for example FancyMenu's audio elements, which only ever offer whatever
 `SoundSource.values()` reports.
 
-- Controllers already sitting in `controllers.json` are promoted right after this mod's own
-  constructor calls `reload()` - as early as this mod itself can run, but always after vanilla's
-  `Options` (and `Minecraft.getInstance()`) already exist.
-- Controllers registered later - through the API by another mod, or added in-game through the
-  Controller Manager screen - are promoted the exact same way, the moment they're registered.
-- Either way, promoting a controller patches the already-running `Options` instance directly (its
-  vanilla sliders live in a fixed-size map that can't just grow, so this rebuilds and swaps it) so
-  the new category works immediately, slider included.
-- Once promoted, a controller's volume is driven entirely by its (now real, vanilla-native) Music &
-  Sounds slider - the same slider this mod's `SoundEngineMixin` uses for sounds assigned through the
-  API, so both stay in sync.
+- A controller is promoted to a real `SoundSource` the moment it's registered: at game start for
+  ids already in `controllers.json`, or immediately for controllers registered later through the
+  API by another mod, or added in-game through the Controller Manager screen.
+- Promoting a controller patches the running `Options` instance directly, so its Music & Sounds
+  slider works immediately - including persistence to `options.txt` - without a restart.
+- Once promoted, a controller's volume is driven entirely by that (now real, vanilla-native) slider
+  - the same one `SoundEngineMixin` uses for sounds assigned through the API, so both stay in sync.
+- Renaming a controller, or deleting and recreating one under the same id, updates its live slider
+  immediately too.
 
-This works by adding a real enum constant at runtime via `sun.misc.Unsafe` field writes (not
-`Field#setAccessible`, which the JVM's module system blocks for `java.base` internals without a
-`--add-opens` flag - `Unsafe` sidesteps that entirely and needs no extra JVM arguments). It's still
-JVM-internals hackery: if it ever fails, it's logged and the affected controller just falls back to
-being a mod-only channel, exactly like before this feature existed - **except if attempted before
-`Minecraft.getInstance()` exists**, which an earlier version of this feature did (as early as
-possible, right before vanilla builds `Options`) and which reliably crashed the JVM itself
-(a native access violation inside `Unsafe`, not a catchable Java exception) rather than failing
-gracefully. That's why promotion only ever happens after the game has actually started.
+This relies on `sun.misc.Unsafe` to add the enum constant at runtime (no `--add-opens` JVM flag
+needed). If it ever fails, it's logged and the controller falls back to being a mod-only channel
+instead of a real sound category.
 
 ## Compatibility with Catalogue / the Mods menu
 
