@@ -48,6 +48,10 @@ public final class GeneratedTranslationPack {
      *  importantly, the resource reload entirely. */
     private static volatile String lastWrittenJson = null;
 
+    /** Whether {@link #regenerate()} has ever run before; see the comment at the bottom of that
+     *  method for why the very first call is special-cased. */
+    private static volatile boolean everRegenerated = false;
+
     private GeneratedTranslationPack() {
     }
 
@@ -91,6 +95,9 @@ public final class GeneratedTranslationPack {
      * {@code Minecraft.getInstance()} exists - is cheap and safe.
      */
     public static synchronized void regenerate() {
+        boolean firstCallEver = !everRegenerated;
+        everRegenerated = true;
+
         Map<String, String> translations = new TreeMap<>(AudioControllerManager.allDefaultNames());
         JsonObject json = new JsonObject();
         for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -111,9 +118,22 @@ public final class GeneratedTranslationPack {
         }
         lastWrittenJson = content;
 
-        // Only the game's *first* resource load ever picks the pack up on its own (it's discovered
-        // fresh from disk at that point, same as any other built-in pack); every later change needs an
-        // explicit reload to be seen, exactly like toggling a resource pack in the vanilla screen does.
+        // The very first regenerate() ever (from AudioControllerManager.reload() in the mod
+        // constructor) runs before Minecraft's own "initial" resource-pack load has happened at all -
+        // that load reads this file fresh off disk on its own, for free, same as any other built-in
+        // pack, as long as it's already written by then (which it is: this runs during mod
+        // construction, well before that first load). Forcing an explicit reload here too would be
+        // both redundant and, this early in Forge's own mod-loading sequence, actively unsafe: it
+        // re-enters that same loading cycle mid-flight and can run *other* mods' still-queued
+        // client-setup work early or in a half-set-up state - this is exactly what let an unrelated
+        // mod (Create) crash on a registry lookup, and what let FancyMenu crash on a null
+        // LanguageManager, during testing. Every later call (renaming/adding/reordering a controller
+        // in-game, or another mod registering one via the API at runtime) happens long after boot, with
+        // no such cycle to re-enter, so it keeps reloading immediately like toggling a pack in the
+        // vanilla screen does.
+        if (firstCallEver) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft != null) {
             minecraft.reloadResourcePacks();
